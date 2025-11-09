@@ -56,7 +56,7 @@ pipeline {
         timeout(time: 10, unit: 'MINUTES') {
           dir('jenkins_project') {
             // if you want tests to be non-fatal too, wrap like Lint with returnStatus
-            bat '"./%VENV%/Scripts/pytest" -q --junitxml=test-suite-results.xml'
+            bat '"./%VENV%/Scripts/pytest" -q --junitxml=pytest-results.xml'
           }
         }
       }
@@ -69,8 +69,8 @@ pipeline {
             script {
             def rc = bat(returnStatus: true, script: '''
               ".\\%VENV%\\Scripts\\coverage" run -m pytest -q
-                ".\\%VENV%\\Scripts\\coverage" xml -o coverage-details.xml
-                ".\\%VENV%\\Scripts\\coverage" report -m > coverage-report.txt
+              ".\\%VENV%\\Scripts\\coverage" xml -o coverage.xml
+              ".\\%VENV%\\Scripts\\coverage" report -m > coverage.txt
             ''')
             echo "coverage step exit code = ${rc}"
             if (rc != 0) {
@@ -90,7 +90,7 @@ pipeline {
             script {
               // Run Bandit but never affect the build result
               def rc = bat(returnStatus: true, script: '''
-                ".\\%VENV%\\Scripts\\bandit" -r . --severity-level high --confidence-level high -f json -o vulnerability-scan.json
+                ".\\%VENV%\\Scripts\\bandit" -r . --severity-level high --confidence-level high -f json -o bandit-report.json
               ''')
               echo "bandit exit code = ${rc} (ignored for build status)"
               // DO NOT set currentBuild.result here -> build remains SUCCESS
@@ -100,16 +100,15 @@ pipeline {
       }
     }
 
-
     stage('Package Deploy') {
       steps {
         timeout(time: 5, unit: 'MINUTES') {
           dir('jenkins_project') {
             bat '''
-              if not exist deployables mkdir deployables
-              ".\\%VENV%\\Scripts\\python" app.py > deployables\\application-output.log
+              if not exist dist mkdir dist
+              ".\\%VENV%\\Scripts\\python" app.py > dist\\run-output.txt
             '''
-            powershell 'Compress-Archive -Path app.py, requirements.txt -DestinationPath deployables\\release-bundle.zip -Force'
+            powershell 'Compress-Archive -Path app.py, requirements.txt -DestinationPath dist\\package.zip -Force'
           }
         }
       }
@@ -119,9 +118,9 @@ pipeline {
   post {
     always {
       dir('jenkins_project') {
-        archiveArtifacts artifacts: 'test-suite-results.xml,coverage-details.xml,coverage-report.txt,vulnerability-scan.json,deployables/', fingerprint: true
+        archiveArtifacts artifacts: 'pytest-results.xml,coverage.xml,coverage.txt,bandit-report.json,dist/**', fingerprint: true
       }
       cleanWs()
-    }
-  }
+    }
+  }
 }

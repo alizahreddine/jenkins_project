@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-from app import greet
+from jenkins_project.app import greet
 import unittest
 
 class TestApp(unittest.TestCase):
